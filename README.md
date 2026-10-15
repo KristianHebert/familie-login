@@ -1,0 +1,64 @@
+# familie-login
+
+Login og Firebase-opsætning til familiens webapps,
+[elbilvalg](https://github.com/KristianHebert/elbilvalg) og
+[madplan](https://github.com/KristianHebert/madplan): Google-login ad to veje
+(Google Identity Services og Firebases eget login), skærmene før appen
+(venteskærm, login, afvist og "Prøv igen"), opdateringsprompten til en PWA
+og et byggetjek, der stopper et byg uden Firebase-nøgler.
+
+Login er den kode, der har kostet mest, og den skal kun findes ét sted.
+Lektierne bag den står i CLAUDE.md i de to apps.
+
+## Brug
+
+Pakken er TypeScript-kildekode og bygges ikke for sig. Appen henter den fra
+GitHub, låst til en version:
+
+```json
+"dependencies": {
+  "@familieapps/familie": "github:KristianHebert/familie-login#v1.0.0"
+}
+```
+
+…og lader sin egen Vite oversætte den. Den skal stå i `optimizeDeps.exclude`,
+for pakken importerer `virtual:pwa-register/react`, som kun appens
+vite-plugin-pwa kan levere:
+
+```ts
+import { kraevNoegler } from "@familieapps/familie/vite";
+
+export default defineConfig({
+  optimizeDeps: { exclude: ["@familieapps/familie"] },
+  plugins: [kraevNoegler(), react(), VitePWA({ /* … */ })],
+});
+```
+
+Appen svarer på ét spørgsmål, hvem den indloggede er, og får resten tilbage:
+
+```ts
+export const { AuthProvider, useAuth, Adgang } = lavLogin<Session>({
+  findSession,   // null = databasen sagde nej; kast = vi ved det ikke
+  lokalSession,  // den, man er uden Firebase-nøgler
+});
+```
+
+Skærmene tager farverne fra appens CSS-variabler: `--accent`,
+`--accent-ink`, `--ink`, `--muted`, `--line` og `--chip`.
+
+## En ny version
+
+1. Ret her, og kør `npm run typecheck`.
+2. Ret `version` i `package.json`, commit, og sæt et tag: `git tag v1.0.1`,
+   `git push --follow-tags`.
+3. I hver app: ret tagget i `package.json`, kør `npm install`, og afprøv
+   login. Apps flytter hver for sig, så en ændring kan prøves i den ene, før
+   den anden får den.
+
+Mens man udvikler på login, kan en app pege på den lokale mappe i stedet:
+`"@familieapps/familie": "file:../familie-login"`. Husk at sætte tagget
+tilbage, før der committes; et byg på GitHub har ikke mappen.
+
+Repoet er offentligt, så appene kan hente det uden nøgler. Her må derfor
+aldrig stå hemmeligheder eller adresser på personer: nøglerne kommer fra
+appens `.env.local`, og administratoren står i appen.
