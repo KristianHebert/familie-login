@@ -23,13 +23,19 @@ GitHub, låst til en version:
 
 …og lader sin egen Vite oversætte den. Den skal stå i `optimizeDeps.exclude`,
 for pakken importerer `virtual:pwa-register/react`, som kun appens
-vite-plugin-pwa kan levere:
+vite-plugin-pwa kan levere. Og Firebase skal stå i `optimizeDeps.include`:
+ellers ser Vite ikke, at pakken bruger Firebase, og så får appen to kopier
+under udvikling, så snart dens egen kode bruger Firestore. Login ender da i
+"Service firestore is not available".
 
 ```ts
 import { kraevNoegler } from "@familieapps/familie/vite";
 
 export default defineConfig({
-  optimizeDeps: { exclude: ["@familieapps/familie"] },
+  optimizeDeps: {
+    exclude: ["@familieapps/familie"],
+    include: ["firebase/app", "firebase/auth", "firebase/firestore"],
+  },
   plugins: [kraevNoegler(), react(), VitePWA({ /* … */ })],
 });
 ```
