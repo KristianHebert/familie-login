@@ -1,7 +1,7 @@
 {
   "name": "@familieapps/familie",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.3.0",
   "type": "module",
   "description": "Det, familiens apps deler: login, Firebase, opdateringer, netværksstatus og uafsendte skrivninger.",
   "repository": "github:KristianHebert/familie-login",

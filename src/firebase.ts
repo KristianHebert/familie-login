@@ -73,6 +73,21 @@ export const isFirebaseConfigured = Boolean(
 let app: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let dbInstance: Firestore | null = null;
+let cacheSizeBytes: number | undefined;
+
+/**
+ * Hvor meget den lokale kopi af databasen må fylde, i bytes. Firestore gemmer
+ * 40 MB som udgangspunkt og smider det ældste ud, når den er fuld. En app, der
+ * gemmer billeder i databasen, skal have mere, så billederne ikke skubber alt
+ * andet ud.
+ *
+ * Kaldes, før databasen åbnes første gang, fx i main.tsx. Bagefter kan
+ * størrelsen ikke ændres, og så kastes der hellere end at lade den være.
+ */
+export function lokalKopiStoerrelse(bytes: number): void {
+  if (dbInstance) throw new Error("lokalKopiStoerrelse skal kaldes, før databasen åbnes");
+  cacheSizeBytes = bytes;
+}
 
 function ensureApp(): FirebaseApp {
   if (!isFirebaseConfigured) {
@@ -148,7 +163,10 @@ export function db(): Firestore {
      * findes frem igen.
      */
     dbInstance = initializeFirestore(app, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        ...(cacheSizeBytes ? { cacheSizeBytes } : {}),
+      }),
     });
     if (EMULATOR) {
       connectFirestoreEmulator(dbInstance, EMULATOR_FIRESTORE.host, EMULATOR_FIRESTORE.port);

@@ -20,7 +20,7 @@ export {
   type Opslag,
 } from "./login";
 export type { AppOplysninger } from "./adgang";
-export { db, isFirebaseConfigured } from "./firebase";
+export { db, isFirebaseConfigured, lokalKopiStoerrelse } from "./firebase";
 export { AppUpdateProvider, useAppUpdate } from "./appUpdate";
 export { useOnline } from "./useOnline";
 export { IkkeSendt, MED_METADATA, glemUafsendt, noterUafsendt, useUafsendt } from "./uafsendt";

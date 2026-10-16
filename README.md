@@ -74,6 +74,16 @@ return () => {
 sekunder, med klassen `chip unsent`. `MED_METADATA` er ikke valgfri: uden den
 kommer kvitteringen aldrig, og mærket bliver hængende.
 
+### Den lokale kopi
+
+Firestore gemmer 40 MB af databasen på enheden og smider det ældste ud, når
+den er fuld. Gemmer appen billeder i databasen, kan den få mere, men kun før
+databasen åbnes første gang:
+
+```ts
+lokalKopiStoerrelse(200 * 1024 * 1024); // i main.tsx, før render
+```
+
 ## En ny version
 
 1. Ret her, og kør `npm run typecheck`.
