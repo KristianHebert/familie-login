@@ -78,7 +78,8 @@ kommer kvitteringen aldrig, og mærket bliver hængende.
 
 1. Ret her, og kør `npm run typecheck`.
 2. Ret `version` i `package.json`, commit, og sæt et tag: `git tag v1.0.1`,
-   `git push --follow-tags`.
+   `git push`, og `git push origin v1.0.1`. `--follow-tags` skubber kun
+   annoterede tags, så et tag fra `git tag v1.0.1` bliver hjemme.
 3. I hver app: ret tagget i `package.json`, kør `npm install`, og afprøv
    login. Apps flytter hver for sig, så en ændring kan prøves i den ene, før
    den anden får den.
