@@ -265,7 +265,12 @@ function erForbindelsesfejl(code: string): boolean {
 function lookupErrorMessage(err: unknown): string {
   const code = authCode(err);
   if (code.includes("permission-denied")) {
-    return "Databasen afviste opslaget. Det er en fejl i adgangsreglerne, ikke i din konto.";
+    // Den anden fane først: det er den forklaring, brugeren selv kan gøre
+    // noget ved. Se slaaOp.
+    return (
+      "Databasen afviste opslaget. Er appen åben i en anden fane, så luk den, og prøv igen. " +
+      "Ellers er det en fejl i adgangsreglerne, ikke i din konto."
+    );
   }
   if (erForbindelsesfejl(code)) {
     /*
@@ -284,6 +289,54 @@ function lookupErrorMessage(err: unknown): string {
     );
   }
   return "Kunne ikke slå din bruger op. Prøv igen.";
+}
+
+/**
+ * Pauserne før hvert nyt forsøg, når databasen har afvist opslaget. I alt
+ * 6,5 sekunder, så venteskærmen ikke når at melde, at det tager for lang tid
+ * (efter 8).
+ */
+const AFVIST_PAUSER_MS = [500, 1000, 2000, 3000];
+
+/**
+ * Appens opslag - prøvet igen et par gange, hvis databasen afviser det.
+ *
+ * Firestore deler den lokale database mellem appens faner
+ * (persistentMultipleTabManager i firebase.ts), og kun én af dem, den
+ * primære, taler med serveren, også på de andres vegne. Logger man ind i en
+ * fane, der ikke er den primære, sendes opslaget af en anden fane, med den
+ * fanes login. Den opdager først det nye login, når dens Auth næste gang
+ * kigger efter i IndexedDB, og indtil da går opslaget ud uden login, og
+ * reglerne siger nej.
+ *
+ * Målt mod emulatoren 16. okt. 2026: det afviste opslag har request.auth null
+ * i emulatorens log, mens fanen, der spurgte, var logget ind. Med to faner
+ * afvises det første opslag hver gang, med én aldrig, og et nyt forsøg
+ * lidt efter går igennem. KristianHebert/elbilvalg#29.
+ *
+ * En synlig fane tager selv rollen som primær, så det rammer, når en anden
+ * fane også er synlig - eller ingen af dem er, som i browserpanelet i
+ * Claude-appen, der kan have faner fra flere sessioner.
+ *
+ * Kun permission-denied prøves igen. En regel, der faktisk siger nej, ender
+ * stadig i "Prøv igen" med koden, bare et par sekunder senere.
+ */
+async function slaaOp<S>(
+  findSession: Opslag<S>["findSession"],
+  k: GoogleKonto,
+  gaeldende: () => boolean,
+): Promise<S | null> {
+  for (let i = 0; ; i++) {
+    try {
+      return await findSession(k);
+    } catch (err) {
+      const pause = AFVIST_PAUSER_MS[i];
+      if (pause === undefined || !gaeldende() || !authCode(err).includes("permission-denied")) {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, pause));
+    }
+  }
 }
 
 /**
@@ -315,11 +368,15 @@ export function lavLogin<S>({ findSession, lokalSession }: Opslag<S>) {
      */
     const afgoer = useCallback((fbUser: FirebaseUser) => {
       setState({ status: "loading" });
-      // Gennem et løfte, så også en fejl, der kastes med det samme, bliver
+      // Er det stadig den indloggede, når svaret kommer? Med de nye forsøg
+      // kan der gå sekunder, og logger man ud imens, må svaret ikke lægge
+      // sig oven på loginsiden.
+      const gaeldende = () => fbUserRef.current?.uid === fbUser.uid;
+      // slaaOp er async, så også en fejl, der kastes med det samme, bliver
       // til "Prøv igen" og ikke til en hvid side.
-      void Promise.resolve()
-        .then(() => findSession(konto(fbUser)))
+      void slaaOp(findSession, konto(fbUser), gaeldende)
         .then((session) => {
+          if (!gaeldende()) return;
           setState(
             session
               ? { status: "signed-in", session }
@@ -327,6 +384,7 @@ export function lavLogin<S>({ findSession, lokalSession }: Opslag<S>) {
           );
         })
         .catch((err: unknown) => {
+          if (!gaeldende()) return;
           const code = authCode(err);
           setState({
             status: "unresolved",
