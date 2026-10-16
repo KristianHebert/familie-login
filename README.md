@@ -4,7 +4,8 @@ Login og Firebase-opsætning til familiens webapps,
 [elbilvalg](https://github.com/KristianHebert/elbilvalg) og
 [madplan](https://github.com/KristianHebert/madplan): Google-login ad to veje
 (Google Identity Services og Firebases eget login), skærmene før appen
-(venteskærm, login, afvist og "Prøv igen"), opdateringsprompten til en PWA
+(venteskærm, login, afvist og "Prøv igen"), opdateringsprompten til en PWA,
+"Ikke sendt endnu" for skrivninger, databasen ikke har kvitteret for,
 og et byggetjek, der stopper et byg uden Firebase-nøgler.
 
 Login er den kode, der har kostet mest, og den skal kun findes ét sted.
@@ -51,6 +52,27 @@ export const { AuthProvider, useAuth, Adgang } = lavLogin<Session>({
 
 Skærmene tager farverne fra appens CSS-variabler: `--accent`,
 `--accent-ink`, `--ink`, `--muted`, `--line` og `--chip`.
+
+### Ikke sendt endnu
+
+Firestore skriver til den lokale kopi først og sender bagefter, så en
+skrivning kan ligge i kø, mens appen ser færdig ud. Hvert abonnement, der
+viser noget, man selv kan skrive, melder sin tilstand:
+
+```ts
+const stop = onSnapshot(q, MED_METADATA, (snap) => {
+  noterUafsendt("shopping", snap.metadata.hasPendingWrites);
+  // …
+});
+return () => {
+  glemUafsendt("shopping");
+  stop();
+};
+```
+
+`<IkkeSendt />` i topbjælken viser mærket, når en skrivning har hængt i fem
+sekunder, med klassen `chip unsent`. `MED_METADATA` er ikke valgfri: uden den
+kommer kvitteringen aldrig, og mærket bliver hængende.
 
 ## En ny version
 
