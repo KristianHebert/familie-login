@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 interface AppUpdate {
@@ -55,10 +55,33 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
     };
   }, [setNeedRefresh]);
 
-  const vaerdi = useMemo<AppUpdate>(
-    () => ({ ready: needRefresh, apply: () => void updateServiceWorker(true) }),
-    [needRefresh, updateServiceWorker],
-  );
+  /**
+   * Skift selv i stedet for kun at bede vite-plugin-pwa om det.
+   *
+   * Pluginnet genindlæser siden på workbox-windows "controlling"-hændelse, men
+   * lytter først efter den, når workbox-window selv har set den nye version
+   * blive installeret. Det ser den kun én gang pr. sideindlæsning: efter den
+   * første opdatering, den finder, holder den op med at lytte efter flere
+   * (`removeEventListener('updatefound', …)` i Workbox.ts). Står appen åben
+   * under to udgivelser, fandt tjek() ovenfor den anden via `reg.waiting`, og
+   * "Ny version klar" kom frem - men et tryk aktiverede bare den nye service
+   * worker i stilhed, og siden blev stående med den gamle version og mærket.
+   * Set i madplanen 16. okt. 2026 efter tre udgivelser på en aften.
+   *
+   * Derfor her: bed den ventende om at tage over, og genindlæs, når den har.
+   */
+  const apply = useCallback(() => {
+    const venter = regRef.current?.waiting;
+    const sw = navigator.serviceWorker;
+    if (!venter || !sw) {
+      void updateServiceWorker(true);
+      return;
+    }
+    sw.addEventListener("controllerchange", () => window.location.reload(), { once: true });
+    venter.postMessage({ type: "SKIP_WAITING" });
+  }, [updateServiceWorker]);
+
+  const vaerdi = useMemo<AppUpdate>(() => ({ ready: needRefresh, apply }), [needRefresh, apply]);
 
   return <Ctx value={vaerdi}>{children}</Ctx>;
 }
