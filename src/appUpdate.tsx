@@ -26,7 +26,6 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_url, registration) {
       regRef.current = registration ?? null;
@@ -45,6 +44,7 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
       // En version, der allerede ventede, udløser ingen ny hændelse. Kig
       // derfor på `waiting` frem for kun at lytte.
       if (reg.waiting) setNeedRefresh(true);
+      else if (!navigator.serviceWorker.controller && (await nyereUdgivet())) setNeedRefresh(true);
     };
 
     document.addEventListener("visibilitychange", tjek);
@@ -73,17 +73,45 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
   const apply = useCallback(() => {
     const venter = regRef.current?.waiting;
     const sw = navigator.serviceWorker;
+    // Intet venter: den nye version er allerede taget i brug (se nyereUdgivet), så en
+    // genindlæsning henter den.
     if (!venter || !sw) {
-      void updateServiceWorker(true);
+      window.location.reload();
       return;
     }
     sw.addEventListener("controllerchange", () => window.location.reload(), { once: true });
     venter.postMessage({ type: "SKIP_WAITING" });
-  }, [updateServiceWorker]);
+  }, []);
 
   const vaerdi = useMemo<AppUpdate>(() => ({ ready: needRefresh, apply }), [needRefresh, apply]);
 
   return <Ctx value={vaerdi}>{children}</Ctx>;
+}
+
+/**
+ * Er en nyere version udgivet end den, siden kører? Spørger serveren og
+ * sammenligner appens script med det, siden selv er indlæst med.
+ *
+ * Kun til en side, ingen service worker styrer, som efter en hård genindlæsning
+ * (Ctrl+Shift+R). Den nye service worker venter så ikke, når den kommer: der er
+ * ingen side, den skal vente på, så den tager over med det samme, og `waiting`
+ * forbliver tom. Siden kører stadig den gamle version, men "Ny version klar"
+ * kom aldrig. Set i madplanen 23. okt. 2026 i Chrome, mens Firefox spurgte.
+ */
+async function nyereUdgivet(): Promise<boolean> {
+  const sel = 'script[type="module"][src]';
+  const egen = document.querySelector<HTMLScriptElement>(sel)?.src;
+  if (!egen) return false;
+  try {
+    const svar = await fetch("/", { cache: "no-store" });
+    if (!svar.ok) return false;
+    const side = new DOMParser().parseFromString(await svar.text(), "text/html");
+    const udgivet = side.querySelector<HTMLScriptElement>(sel)?.getAttribute("src");
+    return !!udgivet && new URL(udgivet, location.origin).href !== egen;
+  } catch {
+    // Offline: så ved vi intet, og der står intet.
+    return false;
+  }
 }
 
 export function useAppUpdate(): AppUpdate {
